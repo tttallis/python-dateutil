@@ -909,7 +909,7 @@ class rruleset(rrulebase):
             parts.append(unicode(rrule))
         for rdate in self._rdate:
             parts.append(u'RDATE:%s' % datetime.datetime.strftime(rdate, DATETIME_FORMAT))
-        for exrule in self._exrule: # a kludge for (and deprecated) attribute
+        for exrule in self._exrule: # a kludge for this rare (and deprecated) attribute
             parts.append(unicode(rrule).replace('RRULE', 'EXRULE'))
         for rdate in self._exdate:
             parts.append(u'EXDATE:%s' % datetime.datetime.strftime(exdate, DATETIME_FORMAT))
