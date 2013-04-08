@@ -998,7 +998,6 @@ class _rrulestr:
 
     def _parse_rfc_rrule(self, line,
                          dtstart=None,
-                         until=None,
                          cache=False,
                          ignoretz=False,
                          tzinfos=None):
@@ -1021,11 +1020,10 @@ class _rrulestr:
                 raise ValueError, "unknown parameter '%s'" % name
             except (KeyError, ValueError):
                 raise ValueError, "invalid '%s': %s" % (name, value)
-        return rrule(dtstart=dtstart, until=until, cache=cache, **rrkwargs)
+        return rrule(dtstart=dtstart, cache=cache, **rrkwargs)
 
     def _parse_rfc(self, s,
                    dtstart=None,
-                   until=None,
                    cache=False,
                    unfold=False,
                    forceset=False,
@@ -1056,7 +1054,7 @@ class _rrulestr:
         if (not forceset and len(lines) == 1 and
             (s.find(':') == -1 or s.startswith('RRULE:'))):
             return self._parse_rfc_rrule(lines[0], cache=cache,
-                                         dtstart=dtstart, until=until, ignoretz=ignoretz,
+                                         dtstart=dtstart, ignoretz=ignoretz,
                                          tzinfos=tzinfos)
         else:
             rrulevals = []
@@ -1113,7 +1111,6 @@ class _rrulestr:
                 set = rruleset(cache=cache)
                 for value in rrulevals:
                     set.rrule(self._parse_rfc_rrule(value, dtstart=dtstart,
-                                                    until=until,
                                                     ignoretz=ignoretz,
                                                     tzinfos=tzinfos))
                 for value in rdatevals:
@@ -1123,7 +1120,6 @@ class _rrulestr:
                                                tzinfos=tzinfos))
                 for value in exrulevals:
                     set.exrule(self._parse_rfc_rrule(value, dtstart=dtstart,
-                                                     until=until,
                                                      ignoretz=ignoretz,
                                                      tzinfos=tzinfos))
                 for value in exdatevals:
@@ -1137,7 +1133,6 @@ class _rrulestr:
             else:
                 return self._parse_rfc_rrule(rrulevals[0],
                                              dtstart=dtstart,
-                                             until=until,
                                              cache=cache,
                                              ignoretz=ignoretz,
                                              tzinfos=tzinfos)
