@@ -43,6 +43,9 @@ M365MASK = tuple(M365MASK)
  HOURLY,
  MINUTELY,
  SECONDLY) = range(7)
+FREQNAMES = ['YEARLY','MONTHLY','WEEKLY','DAILY','HOURLY','MINUTELY','SECONDLY']
+
+DATETIME_FORMAT = '%Y%m%dT%H%M%S' # won't cope with aware datetimes
 
 # Imported on demand.
 easter = None
@@ -396,6 +399,40 @@ class rrule(rrulebase):
                                                     tzinfo=self._tzinfo))
             self._timeset.sort()
             self._timeset = tuple(self._timeset)
+
+    def __str__(self):
+        parts = ['FREQ='+FREQNAMES[self._freq]]
+        if self._interval != 1:
+            parts.append('INTERVAL='+str(self._interval))
+        if self._wkst:
+            parts.append('WKST='+str(self._wkst))
+        if self._count:
+            parts.append('COUNT='+str(self._count))
+
+        for name, value in [ # filter out 0s
+                ('BYSETPOS', self._bysetpos),
+                ('BYMONTH', self._bymonth),
+                ('BYMONTHDAY', self._bymonthday),
+                ('BYYEARDAY', self._byyearday),
+                ('BYWEEKNO', self._byweekno),
+                ('BYWEEKDAY', self._byweekday),
+                ('BYHOUR', self._byhour),
+                ('BYMINUTE', self._byminute),
+                ('BYSECOND', self._bysecond),
+                ]:
+            if value:
+                parts.append(name+'='+','.join(str(v) for v in value))
+        
+        if self._until:
+            parts.append('UNTIL='+datetime.datetime.strftime(self._until, DATETIME_FORMAT))
+            
+        rrulestr = ';'.join(parts)
+        
+        if self._dtstart:
+            parts = ['RRULE:%s' % rrulestr]                
+            parts.append('DTSTART:'+datetime.datetime.strftime(self._dtstart, DATETIME_FORMAT))
+
+        return '\r'.join(parts)
 
     def _iter(self):
         year, month, day, hour, minute, second, weekday, yearday, _ = \
