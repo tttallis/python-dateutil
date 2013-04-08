@@ -429,8 +429,8 @@ class rrule(rrulebase):
         rrulestr = ';'.join(parts)
         
         if self._dtstart:
-            parts = ['RRULE:%s' % rrulestr]                
-            parts.append('DTSTART:'+datetime.datetime.strftime(self._dtstart, DATETIME_FORMAT))
+            parts = ['DTSTART:'+datetime.datetime.strftime(self._dtstart, DATETIME_FORMAT)]                
+            parts.append('RRULE:%s' % rrulestr)
 
         return '\r'.join(parts) # what about line folding?
 
@@ -903,7 +903,17 @@ class rruleset(rrulebase):
     def exdate(self, exdate):
         self._exdate.append(exdate)
         
-        
+    def __unicode__(self):
+        parts = []
+        for rrule in self._rrule:
+            parts.append(unicode(rrule))
+        for rdate in self._rdate:
+            parts.append(u'RDATE:%s' % datetime.datetime.strftime(rdate, DATETIME_FORMAT))
+        for exrule in self._exrule: # a kludge for (and deprecated) attribute
+            parts.append(unicode(rrule).replace('RRULE', 'EXRULE'))
+        for rdate in self._exdate:
+            parts.append(u'EXDATE:%s' % datetime.datetime.strftime(exdate, DATETIME_FORMAT))
+        return '\r'.join(parts)
 
     def _iter(self):
         rlist = []
