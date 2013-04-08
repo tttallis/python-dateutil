@@ -400,7 +400,7 @@ class rrule(rrulebase):
             self._timeset.sort()
             self._timeset = tuple(self._timeset)
 
-    def __str__(self):
+    def __unicode__(self):
         parts = ['FREQ='+FREQNAMES[self._freq]]
         if self._interval != 1:
             parts.append('INTERVAL='+str(self._interval))
@@ -432,7 +432,7 @@ class rrule(rrulebase):
             parts = ['RRULE:%s' % rrulestr]                
             parts.append('DTSTART:'+datetime.datetime.strftime(self._dtstart, DATETIME_FORMAT))
 
-        return '\r'.join(parts)
+        return '\r'.join(parts) # what about line folding?
 
     def _iter(self):
         year, month, day, hour, minute, second, weekday, yearday, _ = \
@@ -902,6 +902,8 @@ class rruleset(rrulebase):
 
     def exdate(self, exdate):
         self._exdate.append(exdate)
+        
+        
 
     def _iter(self):
         rlist = []
