@@ -915,8 +915,8 @@ class rruleset(rrulebase):
             parts.append(u'RDATE:%s' % datetime.datetime.strftime(rd, DATETIME_FORMAT))
         for xr in self._exrule:
             parts.append(unicode(xr).replace('RRULE', 'EXRULE'))
-        for rd in self._exdate:
-            parts.append(u'EXDATE:%s' % datetime.datetime.strftime(rd, DATETIME_FORMAT))
+        for xd in self._exdate:
+            parts.append(u'EXDATE:%s' % datetime.datetime.strftime(xd, DATETIME_FORMAT))
         return '\r'.join(parts)
 
     def _iter(self):
