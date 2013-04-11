@@ -909,14 +909,14 @@ class rruleset(rrulebase):
         
     def __unicode__(self):
         parts = []
-        for rrule in self._rrule:
-            parts.append(unicode(rrule))
-        for rdate in self._rdate:
-            parts.append(u'RDATE:%s' % datetime.datetime.strftime(rdate, DATETIME_FORMAT))
-        for exrule in self._exrule: # a kludge for this rare (and deprecated) attribute
-            parts.append(unicode(rrule).replace('RRULE', 'EXRULE'))
-        for rdate in self._exdate:
-            parts.append(u'EXDATE:%s' % datetime.datetime.strftime(exdate, DATETIME_FORMAT))
+        for rr in self._rrule:
+            parts.append(unicode(rr))
+        for rd in self._rdate:
+            parts.append(u'RDATE:%s' % datetime.datetime.strftime(rd, DATETIME_FORMAT))
+        for xr in self._exrule:
+            parts.append(unicode(xr).replace('RRULE', 'EXRULE'))
+        for rd in self._exdate:
+            parts.append(u'EXDATE:%s' % datetime.datetime.strftime(rd, DATETIME_FORMAT))
         return '\r'.join(parts)
 
     def _iter(self):
