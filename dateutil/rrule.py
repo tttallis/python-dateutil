@@ -163,6 +163,8 @@ class rrulebase:
 
     # __len__() introduces a large performance penality.
     def count(self):
+        if not self._until:
+            return -1
         if self._len is None:
             for x in self: pass
         return self._len
@@ -918,6 +920,14 @@ class rruleset(rrulebase):
         for xd in self._exdate:
             parts.append(u'EXDATE:%s' % datetime.datetime.strftime(xd, DATETIME_FORMAT))
         return '\r'.join(parts)
+
+    def count(self):
+        for rr in self._rrule:
+            if not rr._until:
+                return -1
+        if self._len is None:
+            for x in self: pass
+        return self._len
 
     def _iter(self):
         rlist = []
