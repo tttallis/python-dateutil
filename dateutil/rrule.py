@@ -408,6 +408,10 @@ class rrule(rrulebase):
             parts.append('WKST='+str(self._wkst))
         if self._count:
             parts.append('COUNT='+str(self._count))
+        weekdays = []
+        DAYS = ['MO','TU','WE','TH','FR','SA','SU']
+        if self._byweekday:
+            weekdays = [DAYS[day] for day in self._byweekday]
 
         for name, value in [ # filter out 0s
                 ('BYSETPOS', self._bysetpos),
@@ -415,7 +419,7 @@ class rrule(rrulebase):
                 ('BYMONTHDAY', self._bymonthday),
                 ('BYYEARDAY', self._byyearday),
                 ('BYWEEKNO', self._byweekno),
-                ('BYWEEKDAY', self._byweekday),
+                ('BYDAY', weekdays),
                 ('BYHOUR', self._byhour),
                 ('BYMINUTE', self._byminute),
                 ('BYSECOND', self._bysecond),
