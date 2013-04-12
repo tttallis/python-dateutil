@@ -13,6 +13,7 @@ import calendar
 import thread
 import heapq
 import sys
+import re
 
 __all__ = ["rrule", "rruleset", "rrulestr",
            "YEARLY", "MONTHLY", "WEEKLY", "DAILY",
@@ -402,7 +403,7 @@ class rrule(rrulebase):
             self._timeset.sort()
             self._timeset = tuple(self._timeset)
 
-    def __unicode__(self):
+    def __str__(self):
         parts = ['FREQ='+FREQNAMES[self._freq]]
         if self._interval != 1:
             parts.append('INTERVAL='+str(self._interval))
@@ -432,12 +433,14 @@ class rrule(rrulebase):
         if self._until:
             parts.append('UNTIL='+datetime.datetime.strftime(self._until, DATETIME_FORMAT))
             
-        rrulestr = ';'.join(parts)
+        return ';'.join(parts)
         
-        if self._dtstart:
-            parts = ['DTSTART:'+datetime.datetime.strftime(self._dtstart, DATETIME_FORMAT)]                
-            parts.append('RRULE:%s' % rrulestr)
-
+    def context_str(self, context):
+        rrulestr = str(self)
+        parts=[]
+        if context == "RRULE":
+            parts.append('DTSTART:%s' % datetime.datetime.strftime(self._dtstart, DATETIME_FORMAT))               
+        parts.append('%s:%s' % (context, rrulestr))
         return '\r'.join(parts) # what about line folding?
 
     def _iter(self):
@@ -909,17 +912,23 @@ class rruleset(rrulebase):
     def exdate(self, exdate):
         self._exdate.append(exdate)
         
-    def __unicode__(self):
+    def __str__(self):
         parts = []
         for rr in self._rrule:
-            parts.append(unicode(rr))
+            parts.append(rr.context_str('RRULE'))
         for rd in self._rdate:
-            parts.append(u'RDATE:%s' % datetime.datetime.strftime(rd, DATETIME_FORMAT))
+            parts.append('RDATE:%s' % datetime.datetime.strftime(rd, DATETIME_FORMAT))
         for xr in self._exrule:
-            parts.append(unicode(xr).replace('RRULE', 'EXRULE'))
+            parts.append(xr.context_str('EXRULE'))
         for xd in self._exdate:
-            parts.append(u'EXDATE:%s' % datetime.datetime.strftime(xd, DATETIME_FORMAT))
+            parts.append('EXDATE:%s' % datetime.datetime.strftime(xd, DATETIME_FORMAT))
         return '\r'.join(parts)
+        
+    def __unicode__(self):
+        return unicode(str(self))
+        
+    def __repr__(self):
+        return "<%s: %s>" % (self.__class__.__name__, str(self).replace('\r', ' '))
 
     def count(self):
         for rr in self._rrule:
@@ -960,6 +969,26 @@ class rruleset(rrulebase):
             if rlist and rlist[0] is ritem:
                 heapq.heapreplace(rlist, ritem)
         self._len = total
+        
+def pairwise(iterable):
+    a = iter(iterable)
+    return itertools.izip(a, a)
+
+class multirruleset(rrulebase):
+    def __init__(self, cache=False):
+        rrulebase.__init__(self, cache)
+        self._rruleset = []
+        
+    def parse(self, s):
+        chunks = re.split('(DTSTART)(?i)', s)
+        for st, rr in pairwise(chunks[1:]):
+            rruleset = rrulestr(''.join([st, rr]), forceset=True)
+            self._rruleset.append(rruleset)
+            
+    def __str__(self):
+        return '\r'.join([str(rruleset) for rruleset in self._rruleset])
+        
+    
 
 class _rrulestr:
 
