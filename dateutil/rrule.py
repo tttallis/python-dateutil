@@ -899,9 +899,15 @@ class rruleset(rrulebase):
         self._rdate = []
         self._exrule = []
         self._exdate = []
+        self.first = None
+        self.last = None
 
     def rrule(self, rrule):
         self._rrule.append(rrule)
+        if not self.first or rrule._dtstart < self.first:
+            self.first = rrule._dtstart
+        if not self.last or not rrule._until or rrule._until > self.last:
+            self.last = rrule._until
     
     def rdate(self, rdate):
         self._rdate.append(rdate)
@@ -929,6 +935,9 @@ class rruleset(rrulebase):
         
     def __repr__(self):
         return "<%s: %s>" % (self.__class__.__name__, str(self).replace('\r', ' '))
+
+    def __cmp__(self, other):
+        return cmp(self.first, other.first)
 
     def count(self):
         for rr in self._rrule:
@@ -983,11 +992,30 @@ class multirruleset(rrulebase):
         chunks = re.split('(DTSTART)(?i)', s)
         for st, rr in pairwise(chunks[1:]):
             rruleset = rrulestr(''.join([st, rr]), forceset=True)
+            print 'rruleset', repr(rruleset)
             self._rruleset.append(rruleset)
+        # how do we handle exdate? attach to each?
             
     def __str__(self):
         return '\r'.join([str(rruleset) for rruleset in self._rruleset])
+                
+    def count(self):
+        pass # needs to evaluate all rruleset before counting
         
+    def _iter(self):
+        # sequential generators are common and a very easy case
+        self._rruleset.sort()
+        previous = datetime.datetime.min
+        sequential = True
+        for rset in  self._rruleset:
+            if previous and rset.first > previous:
+                previous = rset.last
+            else:
+                sequential = False
+        if sequential:
+            return itertools.chain(*self._rruleset)
+        else:
+            pass # complex case
     
 
 class _rrulestr:
