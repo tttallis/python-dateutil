@@ -979,6 +979,7 @@ class rruleset(rrulebase):
                 heapq.heapreplace(rlist, ritem)
         self._len = total
         
+        
 def pairwise(iterable):
     a = iter(iterable)
     return itertools.izip(a, a)
@@ -988,11 +989,16 @@ class multirruleset(rrulebase):
         rrulebase.__init__(self, cache)
         self._rruleset = []
         
+    def rruleset(self, rruleset):
+        self._rruleset.append(rruleset)
+        
     def parse(self, s):
-        chunks = re.split('(DTSTART)(?i)', s)
+        try:
+            chunks = re.split('(DTSTART)(?i)', s)
+        except TypeError:
+            print "Cannot parse multirruleset: %s" % s
         for st, rr in pairwise(chunks[1:]):
             rruleset = rrulestr(''.join([st, rr]), forceset=True)
-            print 'rruleset', repr(rruleset)
             self._rruleset.append(rruleset)
         # how do we handle exdate? attach to each?
             
@@ -1013,9 +1019,14 @@ class multirruleset(rrulebase):
             else:
                 sequential = False
         if sequential:
+            print 'sequential generators'
             return itertools.chain(*self._rruleset)
         else:
+            print 'overlapping generators'
             pass # complex case
+
+    def __repr__(self):
+        return "<%s: %s>" % (self.__class__.__name__, str(self).replace('\r', ' '))
     
 
 class _rrulestr:
