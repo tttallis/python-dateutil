@@ -978,56 +978,17 @@ class rruleset(rrulebase):
             if rlist and rlist[0] is ritem:
                 heapq.heapreplace(rlist, ritem)
         self._len = total
-        
-        
-def pairwise(iterable):
-    a = iter(iterable)
-    return itertools.izip(a, a)
-
-class multirruleset(rrulebase):
-    def __init__(self, cache=False):
-        rrulebase.__init__(self, cache)
-        self._rruleset = []
-        
-    def rruleset(self, rruleset):
-        self._rruleset.append(rruleset)
-        
-    def parse(self, s):
-        try:
-            chunks = re.split('(DTSTART)(?i)', s)
-        except TypeError:
-            print "Cannot parse multirruleset: %s" % s
-        for st, rr in pairwise(chunks[1:]):
-            rruleset = rrulestr(''.join([st, rr]), forceset=True)
-            self._rruleset.append(rruleset)
-        # how do we handle exdate? attach to each?
-            
-    def __str__(self):
-        return '\r'.join([str(rruleset) for rruleset in self._rruleset])
-                
-    def count(self):
-        pass # needs to evaluate all rruleset before counting
-        
-    def _iter(self):
-        # sequential generators are common and a very easy case
-        self._rruleset.sort()
-        previous = datetime.datetime.min
-        sequential = True
-        for rset in  self._rruleset:
-            if previous and rset.first > previous:
-                previous = rset.last
-            else:
-                sequential = False
-        if sequential:
-            print 'sequential generators'
-            return itertools.chain(*self._rruleset)
-        else:
-            print 'overlapping generators'
-            pass # complex case
-
-    def __repr__(self):
-        return "<%s: %s>" % (self.__class__.__name__, str(self).replace('\r', ' '))
     
+    def exclude_instance(self, dt):
+        # this works but is untidy
+        # it might be prudent to check if the instance already exists or has already been excluded
+        # or indeed if it is defined by and RDATE which can be deleted
+        self._exdate.append(dt)
+    
+    def move_instance(self, old_dt, new_dt):
+        self.exclude_instance(old_dt)
+        self._rdate.append(new_dt)
+        
 
 class _rrulestr:
 
@@ -1171,7 +1132,7 @@ class _rrulestr:
                 if name == "RRULE":
                     for parm in parms:
                         raise ValueError, "unsupported RRULE parm: "+parm
-                    rrulevals.append(value)
+                    rrulevals.append((dtstart, value))
                 elif name == "RDATE":
                     for parm in parms:
                         if parm != "VALUE=DATE-TIME":
@@ -1180,7 +1141,7 @@ class _rrulestr:
                 elif name == "EXRULE":
                     for parm in parms:
                         raise ValueError, "unsupported EXRULE parm: "+parm
-                    exrulevals.append(value)
+                    exrulevals.append((dtstart, value))
                 elif name == "EXDATE":
                     for parm in parms:
                         if parm != "VALUE=DATE-TIME":
@@ -1204,7 +1165,7 @@ class _rrulestr:
                     from dateutil import parser
                 set = rruleset(cache=cache)
                 for value in rrulevals:
-                    set.rrule(self._parse_rfc_rrule(value, dtstart=dtstart,
+                    set.rrule(self._parse_rfc_rrule(value[1], dtstart=value[0],
                                                     ignoretz=ignoretz,
                                                     tzinfos=tzinfos))
                 for value in rdatevals:
@@ -1213,7 +1174,7 @@ class _rrulestr:
                                                ignoretz=ignoretz,
                                                tzinfos=tzinfos))
                 for value in exrulevals:
-                    set.exrule(self._parse_rfc_rrule(value, dtstart=dtstart,
+                    set.exrule(self._parse_rfc_rrule(value[1], dtstart=value[0],
                                                      ignoretz=ignoretz,
                                                      tzinfos=tzinfos))
                 for value in exdatevals:
@@ -1225,8 +1186,8 @@ class _rrulestr:
                     set.rdate(dtstart)
                 return set
             else:
-                return self._parse_rfc_rrule(rrulevals[0],
-                                             dtstart=dtstart,
+                return self._parse_rfc_rrule(rrulevals[0][1],
+                                             dtstart=rrulevals[0][0],
                                              cache=cache,
                                              ignoretz=ignoretz,
                                              tzinfos=tzinfos)
