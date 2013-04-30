@@ -13,6 +13,7 @@ dateutil/easter.py
 dateutil/parser.py
 dateutil/relativedelta.py
 dateutil/rrule.py
+dateutil/test.py
 dateutil/tz.py
 dateutil/tzwin.py
 dateutil/zoneinfo/__init__.py

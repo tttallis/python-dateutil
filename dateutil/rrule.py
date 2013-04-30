@@ -936,9 +936,6 @@ class rruleset(rrulebase):
     def __repr__(self):
         return "<%s: %s>" % (self.__class__.__name__, str(self).replace('\r', ' '))
 
-    def __cmp__(self, other):
-        return cmp(self.first, other.first)
-
     def count(self):
         for rr in self._rrule:
             if not rr._until:
