@@ -426,13 +426,19 @@ class rrule(rrulebase):
                 ('BYYEARDAY', self._byyearday),
                 ('BYWEEKNO', self._byweekno),
                 ('BYDAY', weekdays),
-                ('BYHOUR', self._byhour),
-                ('BYMINUTE', self._byminute),
-                ('BYSECOND', self._bysecond),
                 ]:
             if value:
                 parts.append(name+'='+','.join(str(v) for v in value))
-        
+                
+        if self._freq > 3:
+            for name, value in [ # filter out 0s
+                    ('BYHOUR', self._byhour),
+                    ('BYMINUTE', self._byminute),
+                    ('BYSECOND', self._bysecond),
+                    ]:
+                if value:
+                    parts.append(name+'='+','.join(str(v) for v in value))
+ 
         if self._until:
             parts.append('UNTIL='+datetime.datetime.strftime(self._until, DATETIME_FORMAT))
             
