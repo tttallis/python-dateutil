@@ -233,6 +233,9 @@ class rrulebase:
         return l
 
 class rrule(rrulebase):
+    def humanize(self):
+        return 'fuck it - where did the humanize method go?'
+    
     def __init__(self, freq, dtstart=None,
                  interval=1, wkst=None, count=None, until=None, bysetpos=None,
                  bymonth=None, bymonthday=None, byyearday=None, byeaster=None,
@@ -910,13 +913,19 @@ class rruleset(rrulebase):
             self.last = rrule._until
     
     def rdate(self, rdate):
-        self._rdate.append(rdate)
+        if rdate in self._exdate:
+            self._exdate.remove(rdate)
+        else:
+            self._rdate.append(rdate)
 
     def exrule(self, exrule):
         self._exrule.append(exrule)
 
     def exdate(self, exdate):
-        self._exdate.append(exdate)
+        if exdate in self._rdate:
+            self._rdate.remove(exdate)
+        else:
+            self._exdate.append(exdate)
         
     def __str__(self):
         parts = []
