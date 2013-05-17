@@ -14,6 +14,7 @@ import thread
 import heapq
 import sys
 import re
+from utils import ordinal
 
 __all__ = ["rrule", "rruleset", "rrulestr",
            "YEARLY", "MONTHLY", "WEEKLY", "DAILY",
@@ -47,6 +48,7 @@ M365MASK = tuple(M365MASK)
 FREQNAMES = ['YEARLY','MONTHLY','WEEKLY','DAILY','HOURLY','MINUTELY','SECONDLY']
 
 DATETIME_FORMAT = '%Y%m%dT%H%M%S' # won't cope with aware datetimes
+HUMAN_WEEKDAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
 
 # Imported on demand.
 easter = None
@@ -234,7 +236,36 @@ class rrulebase:
 
 class rrule(rrulebase):
     def humanize(self):
-        return 'fuck it - where did the humanize method go?'
+        freq = self._freq
+        dt = self._dtstart
+        if freq < 4:
+            if dt.minute:
+                text = datetime.datetime.strftime(dt, '%I:%M%p').lstrip('0').lower()
+            else:
+                text = datetime.datetime.strftime(dt, '%I%p').lstrip('0').lower()
+        if freq == 0: # yearly
+            if self._interval != 1:
+                interval = ' %s' % ordinal(self._interval)
+            else:
+                interval = ''
+            text += " %s %s, every%s year from %s" % (
+                datetime.datetime.strftime(dt, "%B"), 
+                ordinal(dt.day), 
+                interval, 
+                dt.year,
+            )
+        elif freq == 1: # monthly
+            text += " Monthly repetitions not humanized yet"
+        elif freq == 2:
+            weekdays = ', '.join([HUMAN_WEEKDAYS[day] for day in self._byweekday])
+            text += " Every %s" % weekdays
+        elif freq == 3:
+            text += " every day"
+        if self._until:
+            text += ", until %s" % self._until
+        else:
+            text += " onwards"
+        return text
     
     def __init__(self, freq, dtstart=None,
                  interval=1, wkst=None, count=None, until=None, bysetpos=None,
