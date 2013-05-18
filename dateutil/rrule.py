@@ -236,6 +236,8 @@ class rrulebase:
 
 class rrule(rrulebase):
     def humanize(self):
+        # caution: there are still quite a few scenarios missing, and will only work reliably if normalized_start = True
+        # ignores wkst
         freq = self._freq
         dt = self._dtstart
         if freq < 4:
@@ -243,11 +245,15 @@ class rrule(rrulebase):
                 text = datetime.datetime.strftime(dt, '%I:%M%p').lstrip('0').lower()
             else:
                 text = datetime.datetime.strftime(dt, '%I%p').lstrip('0').lower()
+        if self._interval != 1:
+            interval = ' %s' % ordinal(self._interval)
+        else:
+            interval = ''
         if freq == 0: # yearly
-            if self._interval != 1:
-                interval = ' %s' % ordinal(self._interval)
-            else:
-                interval = ''
+            if self._byday:
+                pass
+            if self._bymonth:
+                pass
             text += " %s %s, every%s year from %s" % (
                 datetime.datetime.strftime(dt, "%B"), 
                 ordinal(dt.day), 
@@ -256,10 +262,10 @@ class rrule(rrulebase):
             )
         elif freq == 1: # monthly
             text += " Monthly repetitions not humanized yet"
-        elif freq == 2:
+        elif freq == 2: # weekly
             weekdays = ', '.join([HUMAN_WEEKDAYS[day] for day in self._byweekday])
             text += " Every %s" % weekdays
-        elif freq == 3:
+        elif freq == 3: # daily
             text += " every day"
         if self._until:
             text += ", until %s" % self._until
@@ -272,7 +278,7 @@ class rrule(rrulebase):
                  bymonth=None, bymonthday=None, byyearday=None, byeaster=None,
                  byweekno=None, byweekday=None,
                  byhour=None, byminute=None, bysecond=None,
-                 cache=False):
+                 cache=False, normalized_start=False):
         rrulebase.__init__(self, cache)
         global easter
         if not dtstart:
@@ -436,6 +442,13 @@ class rrule(rrulebase):
                                                     tzinfo=self._tzinfo))
             self._timeset.sort()
             self._timeset = tuple(self._timeset)
+        if normalized_start:
+            self.normalize_start()
+            
+    def normalize_start(self):
+        # resets dtstart to match the first instance
+        # should this be the default?
+        self._dtstart = self.after(self._dtstart, inc=True)    
 
     def __str__(self):
         parts = ['FREQ='+FREQNAMES[self._freq]]
@@ -943,6 +956,7 @@ class rruleset(rrulebase):
         self.last = None
 
     def rrule(self, rrule):
+        rrule.normalize_start() # this is not an elegant place to enforce this - needs some design thought
         self._rrule.append(rrule)
         if not self.first or rrule._dtstart < self.first:
             self.first = rrule._dtstart
@@ -984,9 +998,9 @@ class rruleset(rrulebase):
 
     def count(self):
         for rr in self._rrule:
-            if not rr._until:
+            if not rr._until and not rr._count:
                 return -1
-        if self._len is None:
+        if not self._len:
             for x in self: pass
         return self._len
 
