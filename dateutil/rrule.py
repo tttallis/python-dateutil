@@ -977,7 +977,34 @@ class rruleset(rrulebase):
             self._rdate.remove(exdate)
         else:
             self._exdate.append(exdate)
+            
+    def get_rulesets(self):
+        # bundles all rrules and exrules that share dtstarts into rrulesets
+        # then returns a sorted list of rrulesets, suitable for display as repetition widgets
+        rules = []
+        if len(self._rrule) == 1:
+            return [self]
+        self._rrule.sort()
+        # we don't care about exrules that match no rrule
+        for rule in self._rrule:
+            dt = rule._dtstart
+            ruleset = rruleset()
+            ruleset.rrule(rule)
+            for exrule in self._exrule:
+                if dt == exrule._dtstart:
+                    ruleset.exrule(exrule)
+            rules.append(ruleset)
+        return rules
         
+    def humanize(self):
+        text = []
+        for rule in self.get_rulesets():
+            for rr in rule._rrule:
+                text.append(rr.humanize())
+        # need to humanize exceptions and include rdates and exdates
+        return '\n'.join(text)
+                
+    
     def __str__(self):
         if self._original_str:
             return self._original_str
@@ -1121,7 +1148,8 @@ class _rrulestr:
                          dtstart=None,
                          cache=False,
                          ignoretz=False,
-                         tzinfos=None):
+                         tzinfos=None,
+                         match_dtstarts=False):
         if line.find(':') != -1:
             name, value = line.split(':')
             if name != "RRULE":
@@ -1150,7 +1178,8 @@ class _rrulestr:
                    forceset=False,
                    compatible=False,
                    ignoretz=False,
-                   tzinfos=None):
+                   tzinfos=None,
+                   match_dtstarts=False):
         global parser
         if compatible:
             forceset = True
@@ -1229,7 +1258,7 @@ class _rrulestr:
                 rdatevals or exrulevals or exdatevals):
                 if not parser and (rdatevals or exdatevals):
                     from dateutil import parser
-                set = rruleset(cache=cache, original_str=s)
+                set = rruleset(cache=cache, original_str=s, match_dtstarts=match_dtstarts)
                 for value in rrulevals:
                     set.rrule(self._parse_rfc_rrule(value[1], dtstart=value[0],
                                                     ignoretz=ignoretz,
