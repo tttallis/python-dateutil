@@ -1024,11 +1024,18 @@ class rruleset(rrulebase):
         while rlist:
             ritem = rlist[0]
             if not lastdt or lastdt != ritem.dt:
-                while exlist and exlist[0] < ritem:
-                    exitem = exlist[0]
-                    exitem.next()
-                    if exlist and exlist[0] is exitem:
-                        heapq.heapreplace(exlist, exitem)
+                if self._match_dtstarts:
+                    while exlist and exlist[0] == ritem:
+                        exitem = exlist[0]
+                        exitem.next()
+                        if exlist and exlist[0] is exitem:
+                            heapq.heapreplace(exlist, exitem)
+                else:
+                    while exlist and exlist[0] < ritem:
+                        exitem = exlist[0]
+                        exitem.next()
+                        if exlist and exlist[0] is exitem:
+                            heapq.heapreplace(exlist, exitem)
                 if not exlist or ritem != exlist[0]:
                     total += 1
                     yield ritem.dt
@@ -1222,7 +1229,7 @@ class _rrulestr:
                 rdatevals or exrulevals or exdatevals):
                 if not parser and (rdatevals or exdatevals):
                     from dateutil import parser
-                set = rruleset(cache=cache)
+                set = rruleset(cache=cache, original_str=s)
                 for value in rrulevals:
                     set.rrule(self._parse_rfc_rrule(value[1], dtstart=value[0],
                                                     ignoretz=ignoretz,
@@ -1246,6 +1253,7 @@ class _rrulestr:
                 return set
             else:
                 return self._parse_rfc_rrule(rrulevals[0][1],
+                                             original_str=s,
                                              dtstart=rrulevals[0][0],
                                              cache=cache,
                                              ignoretz=ignoretz,
