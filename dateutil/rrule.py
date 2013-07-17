@@ -278,9 +278,11 @@ class rrule(rrulebase):
                  bymonth=None, bymonthday=None, byyearday=None, byeaster=None,
                  byweekno=None, byweekday=None,
                  byhour=None, byminute=None, bysecond=None,
-                 cache=False, normalized_start=False):
+                 cache=False, normalized_start=False,
+                 original_str=''):
         rrulebase.__init__(self, cache)
         global easter
+        self._original_str = original_str
         if not dtstart:
             dtstart = datetime.datetime.now().replace(microsecond=0)
         elif not isinstance(dtstart, datetime.datetime):
@@ -451,6 +453,8 @@ class rrule(rrulebase):
         self._dtstart = self.after(self._dtstart, inc=True)    
 
     def __str__(self):
+        if self._original_str:
+            return self._original_str
         parts = ['FREQ='+FREQNAMES[self._freq]]
         if self._interval != 1:
             parts.append('INTERVAL='+str(self._interval))
@@ -946,7 +950,7 @@ class rruleset(rrulebase):
         def __cmp__(self, other):
             return cmp(self.dt, other.dt)
 
-    def __init__(self, cache=False):
+    def __init__(self, cache=False, original_str='', match_dtstarts=False):
         rrulebase.__init__(self, cache)
         self._rrule = []
         self._rdate = []
@@ -954,6 +958,8 @@ class rruleset(rrulebase):
         self._exdate = []
         self.first = None
         self.last = None
+        self._original_str = original_str
+        self._match_dtstarts = match_dtstarts
 
     def rrule(self, rrule):
         rrule.normalize_start() # this is not an elegant place to enforce this - needs some design thought
@@ -979,6 +985,8 @@ class rruleset(rrulebase):
             self._exdate.append(exdate)
         
     def __str__(self):
+        if self._original_str:
+            return self._original_str
         parts = []
         for rr in self._rrule:
             parts.append(rr.context_str('RRULE'))
@@ -1045,7 +1053,7 @@ class rruleset(rrulebase):
     def move_instance(self, old_dt, new_dt):
         self.exclude_instance(old_dt)
         self._rdate.append(new_dt)
-        
+    
 
 class _rrulestr:
 
@@ -1132,7 +1140,7 @@ class _rrulestr:
                 raise ValueError, "unknown parameter '%s'" % name
             except (KeyError, ValueError):
                 raise ValueError, "invalid '%s': %s" % (name, value)
-        return rrule(dtstart=dtstart, cache=cache, **rrkwargs)
+        return rrule(dtstart=dtstart, cache=cache, original_str=line, **rrkwargs)
 
     def _parse_rfc(self, s,
                    dtstart=None,
@@ -1165,7 +1173,7 @@ class _rrulestr:
             lines = s.split()
         if (not forceset and len(lines) == 1 and
             (s.find(':') == -1 or s.startswith('RRULE:'))):
-            return self._parse_rfc_rrule(lines[0], cache=cache,
+            return self._parse_rfc_rrule(lines[0], cache=cache, original_str=s,
                                          dtstart=dtstart, ignoretz=ignoretz,
                                          tzinfos=tzinfos)
         else:
