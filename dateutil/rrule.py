@@ -233,45 +233,102 @@ class rrulebase:
                 else:
                     l.append(i)
         return l
-
-class rrule(rrulebase):
-    def humanize(self):
-        # caution: there are still quite a few scenarios missing, and will only work reliably if normalized_start = True
-        # ignores wkst
-        freq = self._freq
-        dt = self._dtstart
-        if freq < 4:
-            if dt.minute:
-                text = datetime.datetime.strftime(dt, '%I:%M%p').lstrip('0').lower()
-            else:
-                text = datetime.datetime.strftime(dt, '%I%p').lstrip('0').lower()
-        if self._interval != 1:
-            interval = ' %s' % ordinal(self._interval)
+        
+class RRuleHumanizer(object): # add a convenient hook so this can be overridden
+    def __init__(self, rrule):
+        self.dt = rrule._dtstart
+        self.freq = rrule._freq
+        self.interval = rrule._interval
+        self.wkst = rrule._wkst
+        self.until = rrule._until
+        self.bymonth = rrule._bymonth
+        self.byweekno = rrule._byweekno
+        self.byyearday = rrule._byyearday
+        self.byweekday = rrule._byweekday
+        self.byeaster = rrule._byeaster
+        self.bymonthday = rrule._bymonthday
+        self.bynmonthday = rrule._bynmonthday
+        self.bysetpos = rrule._bysetpos
+        self.byhour = rrule._byhour
+        self.byminute = rrule._byminute
+        self.bysecond = rrule._bysecond
+        
+    def render(self):
+        if self.until:
+            return "%(start)s - %(until)s, %(time)s repeating %(repeat)s" % {
+                'start':self.render_start(),
+                'until':self.render_until(),
+                'time':self.render_time(self.dt),
+                'repeat':self.render_repeat(),
+            }
         else:
-            interval = ''
-        if freq == 0: # yearly
-            if self._byday:
+            return "%(datetime)s%(repeat)s" % {'datetime':self.render_start(), 'repeat':self.render_repeat()}
+        
+    def render_time(self, dt):
+        if self.freq < HOURLY:
+            if dt.minute:
+                return datetime.datetime.strftime(dt, '%I:%M%p').lstrip('0').lower()
+            else:
+                return datetime.datetime.strftime(dt, '%I%p').lstrip('0').lower()
+        return ''
+    
+    def render_day(self, dt):
+        if self.until:
+            return datetime.datetime.strftime(dt, '%A %d %B')
+        else:
+            return ordinal(dt.day)
+        
+    def render_start(self):
+        if self.until:
+            if self.dt.year != self.until.year:
+                return "%s %d" % (self.render_day(self.dt), self.dt.year)
+            else:
+                return self.render_day(self.dt)
+                
+    def render_until(self):
+        return "%s %d" % (self.render_day(self.until), self.until.year)
+            
+    def render_interval(self):
+        if self.interval != 1:
+            return ' %s' % ordinal(self.interval)
+        else:
+            return ''
+    
+    def render_repeat(self):
+        if self.freq == YEARLY:
+            if self.byday:
                 pass
-            if self._bymonth:
+            if self.bymonth:
                 pass
-            text += " %s %s, every%s year from %s" % (
-                datetime.datetime.strftime(dt, "%B"), 
+            monthstr = datetime.datetime.strftime(self.dt, "%B")
+            return " %s %s, every%s year from %s" % (
+                monthstr, 
                 ordinal(dt.day), 
                 interval, 
                 dt.year,
             )
-        elif freq == 1: # monthly
-            text += " Monthly repetitions not humanized yet"
-        elif freq == 2: # weekly
-            weekdays = ', '.join([HUMAN_WEEKDAYS[day] for day in self._byweekday])
-            text += " Every %s" % weekdays
-        elif freq == 3: # daily
-            text += " every day"
-        if self._until:
-            text += ", until %s" % self._until
-        else:
-            text += " onwards"
-        return text
+        elif self.freq == MONTHLY:
+            return " Monthly repetitions not humanized yet"
+        elif self.freq == WEEKLY:
+            weekdaystr = ', '.join([HUMAN_WEEKDAYS[day] for day in self.byweekday])
+            return " every %s" % weekdaystr
+        elif self.freq == DAILY:
+            return " daily"
+            
+class ExRuleHumanizer(RRuleHumanizer):
+    def __init__(self, exrule, rrule):
+        self.rrule = rrule
+        super(ExRuleHumanizer, self).__init__(exrule)
+        
+#     def render(self):
+#         if until
+        
+
+class rrule(rrulebase):
+    def humanize(self):
+        humanizer = RRuleHumanizer(self)
+        return humanizer.render()
+    
     
     def __init__(self, freq, dtstart=None,
                  interval=1, wkst=None, count=None, until=None, bysetpos=None,
