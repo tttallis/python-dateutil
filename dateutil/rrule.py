@@ -234,8 +234,37 @@ class rrulebase:
                     l.append(i)
         return l
         
-class RRuleHumanizer(object): # add a convenient hook so this can be overridden
-    def __init__(self, rrule):
+(TERSE, NORMAL, VERBOSE, DEBUG)=range(4)
+
+class HumanizerBase(object):
+    def render_time(self, dt):
+        if self.verbosity < VERBOSE:  
+            if dt.minute:
+                return datetime.datetime.strftime(dt, '%I:%M%p').lstrip('0').lower()
+            else:
+                return datetime.datetime.strftime(dt, '%I%p').lstrip('0').lower()
+        else:
+            return datetime.datetime.strftime(dt, '%I:%M%p').lstrip('0').lower()
+    
+    def render_day(self, dt):
+        def terse():
+            return datetime.datetime.strftime(dt, '%d %b')
+            
+        def normal():
+            return datetime.datetime.strftime(dt, '%a %d %b')
+        
+        def verbose():
+            return datetime.datetime.strftime(dt, '%A %d %B')
+
+        return {
+            TERSE:terse(),
+            NORMAL:normal(),
+            VERBOSE:verbose(),
+            DEBUG:verbose(),  # nota bene!
+        }[self.verbosity]
+        
+class RRuleHumanizer(HumanizerBase): # add a convenient hook so this can be overridden
+    def __init__(self, rrule, verbosity=NORMAL):
         self.dt = rrule._dtstart
         self.freq = rrule._freq
         self.interval = rrule._interval
@@ -252,38 +281,29 @@ class RRuleHumanizer(object): # add a convenient hook so this can be overridden
         self.byhour = rrule._byhour
         self.byminute = rrule._byminute
         self.bysecond = rrule._bysecond
+        self.verbosity = verbosity
         
     def render(self):
         if self.until:
-            return "%(start)s - %(until)s, %(time)s repeating %(repeat)s" % {
+            return "%(start)s - %(until)s, %(time)s %(repeat)s" % {
                 'start':self.render_start(),
                 'until':self.render_until(),
                 'time':self.render_time(self.dt),
                 'repeat':self.render_repeat(),
             }
         else:
-            return "%(datetime)s%(repeat)s" % {'datetime':self.render_start(), 'repeat':self.render_repeat()}
-        
-    def render_time(self, dt):
-        if self.freq < HOURLY:
-            if dt.minute:
-                return datetime.datetime.strftime(dt, '%I:%M%p').lstrip('0').lower()
-            else:
-                return datetime.datetime.strftime(dt, '%I%p').lstrip('0').lower()
-        return ''
-    
-    def render_day(self, dt):
-        if self.until:
-            return datetime.datetime.strftime(dt, '%A %d %B')
-        else:
-            return ordinal(dt.day)
-        
+            return "from %(start)s, %(time)s %(repeat)s" % {
+                'start':self.render_start(),
+                'time':self.render_time(self.dt),
+                'repeat':self.render_repeat(),
+            }
+#             return "%(datetime)s%(repeat)s" % {'datetime':self.render_start(), 'repeat':self.render_repeat()}
+                
     def render_start(self):
-        if self.until:
-            if self.dt.year != self.until.year:
-                return "%s %d" % (self.render_day(self.dt), self.dt.year)
-            else:
-                return self.render_day(self.dt)
+        if self.until and self.dt.year == self.until.year:
+            return self.render_day(self.dt)
+        else:
+            return "%s %d" % (self.render_day(self.dt), self.dt.year)
                 
     def render_until(self):
         return "%s %d" % (self.render_day(self.until), self.until.year)
@@ -295,40 +315,31 @@ class RRuleHumanizer(object): # add a convenient hook so this can be overridden
             return ''
     
     def render_repeat(self):
+        if self.verbosity > 1:
+            verbiage = "repeating "
+        else:
+            verbiage = ""
         if self.freq == YEARLY:
-            if self.byday:
-                pass
-            if self.bymonth:
-                pass
             monthstr = datetime.datetime.strftime(self.dt, "%B")
-            return " %s %s, every%s year from %s" % (
+            return "%s%s %s, every%s year from %s" % (
+                verbiage,
                 monthstr, 
-                ordinal(dt.day), 
-                interval, 
-                dt.year,
+                ordinal(self.dt.day), 
+                self.interval, 
+                self.dt.year,
             )
         elif self.freq == MONTHLY:
-            return " Monthly repetitions not humanized yet"
+            return "Monthly repetitions not humanized yet"
         elif self.freq == WEEKLY:
             weekdaystr = ', '.join([HUMAN_WEEKDAYS[day] for day in self.byweekday])
-            return " every %s" % weekdaystr
+            return "%severy %s" % (verbiage, weekdaystr)
         elif self.freq == DAILY:
-            return " daily"
+            return "%sdaily" % verbiage
             
-class ExRuleHumanizer(RRuleHumanizer):
-    def __init__(self, exrule, rrule):
-        self.rrule = rrule
-        super(ExRuleHumanizer, self).__init__(exrule)
-        
-#     def render(self):
-#         if until
-        
-
 class rrule(rrulebase):
-    def humanize(self):
-        humanizer = RRuleHumanizer(self)
+    def humanize(self, verbosity=NORMAL):
+        humanizer = RRuleHumanizer(self, verbosity=verbosity)
         return humanizer.render()
-    
     
     def __init__(self, freq, dtstart=None,
                  interval=1, wkst=None, count=None, until=None, bysetpos=None,
@@ -336,7 +347,7 @@ class rrule(rrulebase):
                  byweekno=None, byweekday=None,
                  byhour=None, byminute=None, bysecond=None,
                  cache=False, normalized_start=False,
-                 original_str=''):
+                 original_str='',):
         rrulebase.__init__(self, cache)
         global easter
         self._original_str = original_str
@@ -543,7 +554,7 @@ class rrule(rrulebase):
             
         return ';'.join(parts)
         
-    def context_str(self, context):
+    def context_str(self, context): # still needed?
         rrulestr = str(self)
         parts=[]
         if context == "RRULE":
@@ -976,6 +987,18 @@ class _iterinfo(object):
                 tzinfo=self.rrule._tzinfo),)
 
 
+class DatesHumanizer(HumanizerBase):
+    # humanizes a list of rdates
+    def __init__(self, datelist, verbosity=NORMAL):
+        self.dates = datelist
+        self.verbosity = verbosity
+        
+    def render(self):
+        text = []
+        for date in self.dates:
+            text.append("%s at %s" % (self.render_day(date), self.render_time(date)))
+        return ', '.join(text) 
+        
 class rruleset(rrulebase):
 
     class _genitem:
@@ -1053,14 +1076,37 @@ class rruleset(rrulebase):
             rules.append(ruleset)
         return rules
         
-    def humanize(self):
+    def humanize(self, verbosity=NORMAL):
+        rulesets = self.get_rulesets()
         text = []
-        for rule in self.get_rulesets():
-            for rr in rule._rrule:
-                text.append(rr.humanize())
-        # need to humanize exceptions and include rdates and exdates
-        return '\n'.join(text)
-                
+        for ruleset in rulesets:
+            text.append(ruleset._humanize_inclusions())
+            exclusion_text = ruleset._humanize_exclusions()
+            if exclusion_text:
+                text.append("except %s" % ruleset._humanize_exclusions())
+        rdates_humanizer = DatesHumanizer(self._rdate, verbosity=verbosity)
+        text.append('plus %s' % rdates_humanizer.render())
+        exdates_humanizer = DatesHumanizer(self._exdate, verbosity=verbosity)
+        exdates_text = exdates_humanizer.render()
+        if exdates_text:
+            text.append('except %s' % exdates_humanizer.render())
+        return '\n\n'.join(text)
+
+    def _humanize_inclusions(self, verbosity=NORMAL):
+        # designed to work on a clustered rruleset, ie. one which has matching dtstarts and no rdates or exdates
+        text = []
+        for rule in self._rrule:
+            text.append(rule.humanize(verbosity=verbosity))
+        return '. '.join(text)
+
+        
+    def _humanize_exclusions(self, verbosity=NORMAL):
+        # designed to work on a clustered rruleset, ie. one which has matching dtstarts and no rdates or exdates
+        text = []
+        for exrule in self._exrule:
+            exrule_humanizer = RRuleHumanizer(exrule, verbosity=verbosity)
+            text.append(exrule_humanizer.render()) # what if multiple rrules and until value differs?
+        return '. '.join(text)
     
     def __str__(self):
         if self._original_str:
