@@ -46,6 +46,7 @@ M365MASK = tuple(M365MASK)
  MINUTELY,
  SECONDLY) = range(7)
 FREQNAMES = ['YEARLY','MONTHLY','WEEKLY','DAILY','HOURLY','MINUTELY','SECONDLY']
+(REPETITION_ONLY, NORMAL, FULLY_RESOLVED) = range(3)
 
 DATETIME_FORMAT = '%Y%m%dT%H%M%S' # won't cope with aware datetimes
 HUMAN_WEEKDAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
@@ -518,10 +519,35 @@ class rrule(rrulebase):
     def normalize_start(self):
         # resets dtstart to match the first instance
         # should this be the default?
-        self._dtstart = self.after(self._dtstart, inc=True)    
+        self._dtstart = self.after(self._dtstart, inc=True)
+        
+    def compare(self, other):
+        # ignoring dtstart, count & until, is this repetition rule the same as other
+        attrs = [
+            freq,
+            interval,
+            wkst,
+            bysetpos,
+            bymonth, 
+            bymonthday, 
+            byyearday, 
+            byeaster,
+            byweekno, 
+            byweekday,
+            byhour,
+            byminute, 
+            bysecond,
+        ]
+        for attr in attrs:
+            if getattr(attr, self, None) != getattr(attr, self, other):
+                break
+        else:
+            return True
 
-    def __str__(self):
-        if self._original_str:
+    def __str__(self, idempotent=True, mode=NORMAL):
+        # mode=repetition_only, normal, fully_resolved, idempotent=True
+        # repetition_only implies force_new
+        if idempotent and self._original_str:
             return self._original_str
         parts = ['FREQ='+FREQNAMES[self._freq]]
         if self._interval != 1:
@@ -535,7 +561,7 @@ class rrule(rrulebase):
         if self._byweekday:
             weekdays = [DAYS[day] for day in self._byweekday]
 
-        for name, value in [ # filter out 0s
+        for name, value in [ # filter out 0s if not mode==FULLY_RESOLVED
                 ('BYSETPOS', self._bysetpos),
                 ('BYMONTH', self._bymonth),
                 ('BYMONTHDAY', self._bymonthday),
@@ -549,19 +575,25 @@ class rrule(rrulebase):
             if value:
                 parts.append(name+'='+','.join(str(v) for v in value))
         
-        if self._until:
+        if mode > REPETITION_ONLY and self._until:
             parts.append('UNTIL='+datetime.datetime.strftime(self._until, DATETIME_FORMAT))
             
         return ';'.join(parts)
         
-    def context_str(self, context): # still needed?
-        rrulestr = str(self)
+    def context_str(self, context, forced_new=False): # still needed?
+        rrulestr = self.__str__(forced_new=forced_new)
         parts=[]
         if context == "RRULE":
             parts.append('DTSTART:%s' % datetime.datetime.strftime(self._dtstart, DATETIME_FORMAT))               
         parts.append('%s:%s' % (context, rrulestr))
         return '\r'.join(parts) # what about line folding?
-
+        
+    def repetition_string(self):
+        return self.__str__(repetition_only=True)
+    
+    def forced_string(self):
+        return self.__str__(force_new=True)
+    
     def _iter(self):
         year, month, day, hour, minute, second, weekday, yearday, _ = \
             self._dtstart.timetuple()
@@ -1076,6 +1108,11 @@ class rruleset(rrulebase):
             rules.append(ruleset)
         return rules
         
+    def compare(self, other):
+        # assumes a bundled rruleset
+        if len(self._rrule) == len(other._rrule) and len(self._exrule) == len(other._exrule):
+            pass
+        
     def humanize(self, verbosity=NORMAL):
         rulesets = self.get_rulesets()
         text = []
@@ -1099,7 +1136,6 @@ class rruleset(rrulebase):
             text.append(rule.humanize(verbosity=verbosity))
         return '. '.join(text)
 
-        
     def _humanize_exclusions(self, verbosity=NORMAL):
         # designed to work on a clustered rruleset, ie. one which has matching dtstarts and no rdates or exdates
         text = []
@@ -1124,6 +1160,20 @@ class rruleset(rrulebase):
         
     def __unicode__(self):
         return unicode(str(self))
+        
+    def inclusion_string(self):
+        # designed to work on a clustered rruleset, ie. one which has matching dtstarts and no rdates or exdates
+        parts = []
+        for rr in self._rrule:
+            parts.append(rr.__str__(repetition_only=True))
+        return '\n'.join(parts)
+    
+    def exclusion_string(self):
+        # designed to work on a clustered rruleset, ie. one which has matching dtstarts and no rdates or exdates
+        parts = []
+        for ex in self._exrule:
+            parts.append(ex.__str__(repetition_only=True))
+        return '\n'.join(parts)
         
     def __repr__(self):
         return "<%s: %s>" % (self.__class__.__name__, str(self).replace('\r', ' '))
