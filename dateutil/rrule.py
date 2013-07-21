@@ -337,18 +337,42 @@ class RRuleHumanizer(HumanizerBase): # add a convenient hook so this can be over
         elif self.freq == DAILY:
             return "%sdaily" % verbiage
             
+
+def actual_kwargs(function):
+    """
+    Decorator that provides the wrapped function with an attribute 'actual_kwargs'
+    containing just those keyword arguments actually passed in to the function.
+    """
+    def decorator(function):
+        def inner(*args, **kwargs):
+            inner.actual_kwargs = kwargs
+            return function(*args, **kwargs)
+        return inner
+    return decorator
+
 class rrule(rrulebase):
     def humanize(self, verbosity=NORMAL):
         humanizer = RRuleHumanizer(self, verbosity=verbosity)
         return humanizer.render()
     
     def __init__(self, freq, dtstart=None,
-                 interval=1, wkst=None, count=None, until=None, bysetpos=None,
+                 interval=None, wkst=None, count=None, until=None, bysetpos=None,
                  bymonth=None, bymonthday=None, byyearday=None, byeaster=None,
                  byweekno=None, byweekday=None,
                  byhour=None, byminute=None, bysecond=None,
                  cache=False, normalized_start=False,
                  original_str='',):
+#         import pdb; pdb.set_trace()
+                 
+        kwargs = locals().copy()
+        del kwargs['self']
+        if 'original_str' in kwargs:
+            del kwargs['original_str']
+        
+        self.original_kwargs = dict((k,v) for k,v in kwargs.iteritems() if v is not None and v is not False and not isinstance(v, datetime.datetime))
+
+        if not interval: # needed to work around check the kwargs
+            interval = 1
         rrulebase.__init__(self, cache)
         global easter
         self._original_str = original_str
