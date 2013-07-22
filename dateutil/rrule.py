@@ -369,9 +369,10 @@ class rrule(rrulebase):
         if 'original_str' in kwargs:
             del kwargs['original_str']
         
-        self.original_kwargs = dict((k,v) for k,v in kwargs.iteritems() if v is not None and v is not False and not isinstance(v, datetime.datetime))
+        original_kwargs = dict((k,v) for k,v in kwargs.iteritems() if v is not None and v is not False and not isinstance(v, datetime.datetime))
+        self.original_params = {name.upper().replace('BYWEEKDAY', 'BYDAY'): val for name,val in original_kwargs.items()}
 
-        if not interval: # needed to work around check the kwargs
+        if not interval: # needed to work around checking the kwargs
             interval = 1
         rrulebase.__init__(self, cache)
         global easter
@@ -568,56 +569,45 @@ class rrule(rrulebase):
         else:
             return True
 
-    def __str__(self, idempotent=True, mode=NORMAL):
-        # mode=repetition_only, normal, fully_resolved, idempotent=True
-        # repetition_only implies force_new
-        if idempotent and self._original_str:
+    def __str__(self, context=None, original_str=False, mode=NORMAL):
+        # mode=repetition_only|normal|fully_resolved, original_str=True
+        if original_str and self._original_str:
             return self._original_str
-        parts = ['FREQ='+FREQNAMES[self._freq]]
-        if self._interval != 1:
-            parts.append('INTERVAL='+str(self._interval))
-        if self._wkst:
-            parts.append('WKST='+str(self._wkst))
-        if self._count:
-            parts.append('COUNT='+str(self._count))
+        parts = []
         weekdays = []
         DAYS = ['MO','TU','WE','TH','FR','SA','SU']
         if self._byweekday:
             weekdays = [DAYS[day] for day in self._byweekday]
-
         for name, value in [ # filter out 0s if not mode==FULLY_RESOLVED
-                ('BYSETPOS', self._bysetpos),
-                ('BYMONTH', self._bymonth),
-                ('BYMONTHDAY', self._bymonthday),
-                ('BYYEARDAY', self._byyearday),
-                ('BYWEEKNO', self._byweekno),
-                ('BYDAY', weekdays),
-                ('BYHOUR', self._byhour),
-                ('BYMINUTE', self._byminute),
-                ('BYSECOND', self._bysecond),
+                    ('FREQ', [FREQNAMES[self._freq]]),
+                    ('WKST', self._wkst),
+                    ('COUNT', self._count),
+                    ('BYSETPOS', self._bysetpos),
+                    ('BYMONTH', self._bymonth),
+                    ('BYMONTHDAY', self._bymonthday),
+                    ('BYYEARDAY', self._byyearday),
+                    ('BYWEEKNO', self._byweekno),
+                    ('BYDAY', weekdays),
+                    ('BYHOUR', self._byhour),
+                    ('BYMINUTE', self._byminute),
+                    ('BYSECOND', self._bysecond),
                 ]:
-            if value:
+            if (mode == FULLY_RESOLVED and value) or name in self.original_params.keys():
                 parts.append(name+'='+','.join(str(v) for v in value))
         
+        if mode==FULLY_RESOLVED or self._interval != 1:
+            parts.append('INTERVAL='+str(self._interval))
         if mode > REPETITION_ONLY and self._until:
             parts.append('UNTIL='+datetime.datetime.strftime(self._until, DATETIME_FORMAT))
-            
-        return ';'.join(parts)
-        
-    def context_str(self, context, forced_new=False): # still needed?
-        rrulestr = self.__str__(forced_new=forced_new)
-        parts=[]
-        if context == "RRULE":
-            parts.append('DTSTART:%s' % datetime.datetime.strftime(self._dtstart, DATETIME_FORMAT))               
-        parts.append('%s:%s' % (context, rrulestr))
-        return '\r'.join(parts) # what about line folding?
-        
-    def repetition_string(self):
-        return self.__str__(repetition_only=True)
-    
-    def forced_string(self):
-        return self.__str__(force_new=True)
-    
+        if mode > REPETITION_ONLY and self._dtstart:
+            start = 'DTSTART:'+datetime.datetime.strftime(self._dtstart, DATETIME_FORMAT)+'\n'
+        else:
+            start=''
+        if context:
+            return '%s%s:%s' % (start, context, ';'.join(parts))
+        else:
+            return '%s%s' % (start, ';'.join(parts))
+   
     def _iter(self):
         year, month, day, hour, minute, second, weekday, yearday, _ = \
             self._dtstart.timetuple()
@@ -1145,8 +1135,9 @@ class rruleset(rrulebase):
             exclusion_text = ruleset._humanize_exclusions()
             if exclusion_text:
                 text.append("except %s" % ruleset._humanize_exclusions())
-        rdates_humanizer = DatesHumanizer(self._rdate, verbosity=verbosity)
-        text.append('plus %s' % rdates_humanizer.render())
+        rdates_text = DatesHumanizer(self._rdate, verbosity=verbosity).render()
+        if rdates_text:
+            text.append('plus %s' % rdates_text)
         exdates_humanizer = DatesHumanizer(self._exdate, verbosity=verbosity)
         exdates_text = exdates_humanizer.render()
         if exdates_text:
@@ -1168,16 +1159,16 @@ class rruleset(rrulebase):
             text.append(exrule_humanizer.render()) # what if multiple rrules and until value differs?
         return '. '.join(text)
     
-    def __str__(self):
-        if self._original_str:
+    def __str__(self, original_str=False, mode=NORMAL):
+        if original_str and self._original_str:
             return self._original_str
         parts = []
         for rr in self._rrule:
-            parts.append(rr.context_str('RRULE'))
+            parts.append(rr.__str__(context='RRULE', mode=mode, original_str=original_str))
         for rd in self._rdate:
             parts.append('RDATE:%s' % datetime.datetime.strftime(rd, DATETIME_FORMAT))
         for xr in self._exrule:
-            parts.append(xr.context_str('EXRULE'))
+            parts.append(xr.__str__(context='EXRULE', mode=mode, original_str=original_str))
         for xd in self._exdate:
             parts.append('EXDATE:%s' % datetime.datetime.strftime(xd, DATETIME_FORMAT))
         return '\r'.join(parts)
