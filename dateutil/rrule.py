@@ -546,29 +546,15 @@ class rrule(rrulebase):
         # should this be the default?
         self._dtstart = self.after(self._dtstart, inc=True)
         
-    def compare(self, other):
-        # ignoring dtstart, count & until, is this repetition rule the same as other
-        attrs = [
-            freq,
-            interval,
-            wkst,
-            bysetpos,
-            bymonth, 
-            bymonthday, 
-            byyearday, 
-            byeaster,
-            byweekno, 
-            byweekday,
-            byhour,
-            byminute, 
-            bysecond,
-        ]
-        for attr in attrs:
-            if getattr(attr, self, None) != getattr(attr, self, other):
-                break
-        else:
-            return True
+    def compare_rrules(self, other):
+        return self.repetition_str() == other.repetition_str()
 
+    def repetition_str(self, context=None, original_str=False):
+        return self.__unicode__(context=context, mode=REPETITION_ONLY, original_str=original_str)
+         
+    def fully_resolved_str(self, context=None, original_str=False):
+        return self.__unicode__(context=context, mode=FULLY_RESOLVED, original_str=original_str)
+         
     def __str__(self, context=None, original_str=False, mode=NORMAL):
         # mode=repetition_only|normal|fully_resolved, original_str=True
         if original_str and self._original_str:
@@ -608,6 +594,9 @@ class rrule(rrulebase):
         else:
             return '%s%s' % (start, ';'.join(parts))
    
+    def __unicode__(self, context=None, original_str=False, mode=NORMAL):
+        return unicode(self.__str__(context=context, original_str=original_str, mode=mode))
+
     def _iter(self):
         year, month, day, hour, minute, second, weekday, yearday, _ = \
             self._dtstart.timetuple()
@@ -1070,7 +1059,7 @@ class rruleset(rrulebase):
         def __cmp__(self, other):
             return cmp(self.dt, other.dt)
 
-    def __init__(self, cache=False, original_str='', match_dtstarts=False):
+    def __init__(self, cache=False, original_str='', match_dtstarts=False, boilerplate_rules=[]):
         rrulebase.__init__(self, cache)
         self._rrule = []
         self._rdate = []
@@ -1080,6 +1069,7 @@ class rruleset(rrulebase):
         self.last = None
         self._original_str = original_str
         self._match_dtstarts = match_dtstarts
+        self._boilerplate_rules = boilerplate_rules
 
     def rrule(self, rrule):
         rrule.normalize_start() # this is not an elegant place to enforce this - needs some design thought
@@ -1114,27 +1104,26 @@ class rruleset(rrulebase):
         # we don't care about exrules that match no rrule
         for rule in self._rrule:
             dt = rule._dtstart
-            ruleset = rruleset()
+            ruleset = rruleset(boilerplate_rules=self._boilerplate_rules)
             ruleset.rrule(rule)
             for exrule in self._exrule:
                 if dt == exrule._dtstart:
                     ruleset.exrule(exrule)
             rules.append(ruleset)
         return rules
-        
-    def compare(self, other):
-        # assumes a bundled rruleset
-        if len(self._rrule) == len(other._rrule) and len(self._exrule) == len(other._exrule):
-            pass
-        
+                
     def humanize(self, verbosity=NORMAL):
-        rulesets = self.get_rulesets()
         text = []
-        for ruleset in rulesets:
-            text.append(ruleset._humanize_inclusions())
-            exclusion_text = ruleset._humanize_exclusions()
-            if exclusion_text:
-                text.append("except %s" % ruleset._humanize_exclusions())
+        for ruleset in self.get_rulesets(): # this seems inefficient
+            for brule in self._boilerplate_rules:
+                if set(ruleset.comparison_strings()) == set(brule.repetition_string.split()):
+                    text.append(brule.name)
+                    break
+#             else:
+#                 text.append(ruleset._humanize_inclusions())
+#                 exclusion_text = ruleset._humanize_exclusions()
+#                 if exclusion_text:
+#                     text.append("except %s" % ruleset._humanize_exclusions())
         rdates_text = DatesHumanizer(self._rdate, verbosity=verbosity).render()
         if rdates_text:
             text.append('plus %s' % rdates_text)
@@ -1142,7 +1131,7 @@ class rruleset(rrulebase):
         exdates_text = exdates_humanizer.render()
         if exdates_text:
             text.append('except %s' % exdates_humanizer.render())
-        return '\n\n'.join(text)
+        return '\n'.join(text)
 
     def _humanize_inclusions(self, verbosity=NORMAL):
         # designed to work on a clustered rruleset, ie. one which has matching dtstarts and no rdates or exdates
@@ -1159,6 +1148,23 @@ class rruleset(rrulebase):
             text.append(exrule_humanizer.render()) # what if multiple rrules and until value differs?
         return '. '.join(text)
     
+    def comparison_strings(self):
+        strings = [rrule.repetition_str(context='RRULE') for rrule in self._rrule]
+        strings.extend([exrule.repetition_str(context='EXRULE') for exrule in self._exrule])
+        return strings
+    
+#     def compare_rules(self, other):
+#         return set(self.repetition_strings()) == set(other.repetition_strings())
+
+    def repetition_str(self, original_str=False):
+        return self.__unicode__(mode=REPETITION_ONLY, original_str=original_str)
+         
+    def fully_resolved_str(self, original_str=False):
+        return self.__unicode__(mode=FULLY_RESOLVED, original_str=original_str)
+         
+    def __unicode__(self, original_str=False, mode=NORMAL):
+        return unicode(self.__str__(original_str=original_str, mode=mode))
+
     def __str__(self, original_str=False, mode=NORMAL):
         if original_str and self._original_str:
             return self._original_str
@@ -1173,22 +1179,8 @@ class rruleset(rrulebase):
             parts.append('EXDATE:%s' % datetime.datetime.strftime(xd, DATETIME_FORMAT))
         return '\r'.join(parts)
         
-    def __unicode__(self):
-        return unicode(str(self))
-        
-    def inclusion_string(self):
-        # designed to work on a clustered rruleset, ie. one which has matching dtstarts and no rdates or exdates
-        parts = []
-        for rr in self._rrule:
-            parts.append(rr.__str__(repetition_only=True))
-        return '\n'.join(parts)
-    
-    def exclusion_string(self):
-        # designed to work on a clustered rruleset, ie. one which has matching dtstarts and no rdates or exdates
-        parts = []
-        for ex in self._exrule:
-            parts.append(ex.__str__(repetition_only=True))
-        return '\n'.join(parts)
+    def __unicode__(self, original_str=False, mode=NORMAL):
+        return unicode(self.__str__(original_str=original_str, mode=mode))
         
     def __repr__(self):
         return "<%s: %s>" % (self.__class__.__name__, str(self).replace('\r', ' '))
@@ -1347,7 +1339,8 @@ class _rrulestr:
                    compatible=False,
                    ignoretz=False,
                    tzinfos=None,
-                   match_dtstarts=False):
+                   match_dtstarts=False,
+                   boilerplate_rules=[]):
         global parser
         if compatible:
             forceset = True
@@ -1426,28 +1419,28 @@ class _rrulestr:
                 rdatevals or exrulevals or exdatevals):
                 if not parser and (rdatevals or exdatevals):
                     from dateutil import parser
-                set = rruleset(cache=cache, original_str=s, match_dtstarts=match_dtstarts)
+                rrset = rruleset(cache=cache, original_str=s, match_dtstarts=match_dtstarts, boilerplate_rules=boilerplate_rules)
                 for value in rrulevals:
-                    set.rrule(self._parse_rfc_rrule(value[1], dtstart=value[0],
+                    rrset.rrule(self._parse_rfc_rrule(value[1], dtstart=value[0],
                                                     ignoretz=ignoretz,
-                                                    tzinfos=tzinfos))
+                                                    tzinfos=tzinfos,))
                 for value in rdatevals:
                     for datestr in value.split(','):
-                        set.rdate(parser.parse(datestr,
+                        rrset.rdate(parser.parse(datestr,
                                                ignoretz=ignoretz,
                                                tzinfos=tzinfos))
                 for value in exrulevals:
-                    set.exrule(self._parse_rfc_rrule(value[1], dtstart=value[0],
+                    rrset.exrule(self._parse_rfc_rrule(value[1], dtstart=value[0],
                                                      ignoretz=ignoretz,
                                                      tzinfos=tzinfos))
                 for value in exdatevals:
                     for datestr in value.split(','):
-                        set.exdate(parser.parse(datestr,
+                        rrset.exdate(parser.parse(datestr,
                                                 ignoretz=ignoretz,
                                                 tzinfos=tzinfos))
                 if compatible and dtstart:
-                    set.rdate(dtstart)
-                return set
+                    rrset.rdate(dtstart)
+                return rrset
             else:
                 return self._parse_rfc_rrule(rrulevals[0][1],
                                              original_str=s,
