@@ -265,7 +265,7 @@ class HumanizerBase(object):
         }[self.verbosity]
         
 class RRuleHumanizer(HumanizerBase): # add a convenient hook so this can be overridden
-    def __init__(self, rrule, verbosity=NORMAL):
+    def __init__(self, rrule, verbosity=NORMAL, boilerplate=None):
         self.dt = rrule._dtstart
         self.freq = rrule._freq
         self.interval = rrule._interval
@@ -283,6 +283,7 @@ class RRuleHumanizer(HumanizerBase): # add a convenient hook so this can be over
         self.byminute = rrule._byminute
         self.bysecond = rrule._bysecond
         self.verbosity = verbosity
+        self.boilerplate = boilerplate
         
     def render(self):
         if self.until:
@@ -319,7 +320,9 @@ class RRuleHumanizer(HumanizerBase): # add a convenient hook so this can be over
         if self.verbosity > 1:
             verbiage = "repeating "
         else:
-            verbiage = ""
+            verbiage = "- "
+        if self.boilerplate:
+            return "%s%s" % (verbiage, self.boilerplate.name)
         if self.freq == YEARLY:
             monthstr = datetime.datetime.strftime(self.dt, "%B")
             return "%s%s %s, every%s year from %s" % (
@@ -337,18 +340,6 @@ class RRuleHumanizer(HumanizerBase): # add a convenient hook so this can be over
         elif self.freq == DAILY:
             return "%sdaily" % verbiage
             
-
-def actual_kwargs(function):
-    """
-    Decorator that provides the wrapped function with an attribute 'actual_kwargs'
-    containing just those keyword arguments actually passed in to the function.
-    """
-    def decorator(function):
-        def inner(*args, **kwargs):
-            inner.actual_kwargs = kwargs
-            return function(*args, **kwargs)
-        return inner
-    return decorator
 
 class rrule(rrulebase):
     def humanize(self, verbosity=NORMAL):
@@ -1094,7 +1085,7 @@ class rruleset(rrulebase):
         else:
             self._exdate.append(exdate)
             
-    def get_rulesets(self):
+    def get_rulesets(self, start=None, end=None):
         # bundles all rrules and exrules that share dtstarts into rrulesets
         # then returns a sorted list of rrulesets, suitable for display as repetition widgets
         rules = []
@@ -1103,27 +1094,28 @@ class rruleset(rrulebase):
         self._rrule.sort()
         # we don't care about exrules that match no rrule
         for rule in self._rrule:
-            dt = rule._dtstart
-            ruleset = rruleset(boilerplate_rules=self._boilerplate_rules)
-            ruleset.rrule(rule)
-            for exrule in self._exrule:
-                if dt == exrule._dtstart:
-                    ruleset.exrule(exrule)
-            rules.append(ruleset)
+            if not start or self._until > start:
+                if not end or self._dtstart < end:
+                    dt = rule._dtstart
+                    ruleset = rruleset(boilerplate_rules=self._boilerplate_rules)
+                    ruleset.rrule(rule)
+                    for exrule in self._exrule:
+                        if dt == exrule._dtstart:
+                            ruleset.exrule(exrule)
+                    rules.append(ruleset)
         return rules
                 
     def humanize(self, verbosity=NORMAL):
         text = []
         for ruleset in self.get_rulesets(): # this seems inefficient
-            for brule in self._boilerplate_rules:
-                if set(ruleset.comparison_strings()) == set(brule.repetition_string.split()):
-                    text.append(brule.name)
-                    break
-#             else:
-#                 text.append(ruleset._humanize_inclusions())
-#                 exclusion_text = ruleset._humanize_exclusions()
-#                 if exclusion_text:
-#                     text.append("except %s" % ruleset._humanize_exclusions())
+            if ruleset._matched_rule():
+                repetition_text = RRuleHumanizer(ruleset._rrule[0], verbosity=verbosity, boilerplate=ruleset._matched_rule()).render()
+                text.append(repetition_text)
+            else:
+                text.append(ruleset._humanize_inclusions())
+                exclusion_text = ruleset._humanize_exclusions()
+                if exclusion_text:
+                    text.append("except %s" % ruleset._humanize_exclusions())
         rdates_text = DatesHumanizer(self._rdate, verbosity=verbosity).render()
         if rdates_text:
             text.append('plus %s' % rdates_text)
@@ -1132,6 +1124,11 @@ class rruleset(rrulebase):
         if exdates_text:
             text.append('except %s' % exdates_humanizer.render())
         return '\n'.join(text)
+        
+    def _matched_rule(self):
+        for brule in self._boilerplate_rules:
+            if set(self.comparison_strings()) == set(brule.repetition_string.split()):
+                return brule
 
     def _humanize_inclusions(self, verbosity=NORMAL):
         # designed to work on a clustered rruleset, ie. one which has matching dtstarts and no rdates or exdates
