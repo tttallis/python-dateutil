@@ -265,7 +265,7 @@ class HumanizerBase(object):
         }[self.verbosity]
         
 class RRuleHumanizer(HumanizerBase): # add a convenient hook so this can be overridden
-    def __init__(self, rrule, verbosity=NORMAL, boilerplate=None):
+    def __init__(self, rrule, verbosity=NORMAL):
         self.dt = rrule._dtstart
         self.freq = rrule._freq
         self.interval = rrule._interval
@@ -283,7 +283,6 @@ class RRuleHumanizer(HumanizerBase): # add a convenient hook so this can be over
         self.byminute = rrule._byminute
         self.bysecond = rrule._bysecond
         self.verbosity = verbosity
-        self.boilerplate = boilerplate
         
     def render(self):
         if self.until:
@@ -321,8 +320,6 @@ class RRuleHumanizer(HumanizerBase): # add a convenient hook so this can be over
             verbiage = "repeating "
         else:
             verbiage = "- "
-        if self.boilerplate:
-            return "%s%s" % (verbiage, self.boilerplate.name)
         if self.freq == YEARLY:
             monthstr = datetime.datetime.strftime(self.dt, "%B")
             return "%s%s %s, every%s year from %s" % (
@@ -353,7 +350,6 @@ class rrule(rrulebase):
                  byhour=None, byminute=None, bysecond=None,
                  cache=False, normalized_start=False,
                  original_str='',):
-#         import pdb; pdb.set_trace()
                  
         kwargs = locals().copy()
         del kwargs['self']
@@ -1050,7 +1046,7 @@ class rruleset(rrulebase):
         def __cmp__(self, other):
             return cmp(self.dt, other.dt)
 
-    def __init__(self, cache=False, original_str='', match_dtstarts=False, boilerplate_rules=[]):
+    def __init__(self, cache=False, original_str='', match_dtstarts=False):
         rrulebase.__init__(self, cache)
         self._rrule = []
         self._rdate = []
@@ -1060,7 +1056,6 @@ class rruleset(rrulebase):
         self.last = None
         self._original_str = original_str
         self._match_dtstarts = match_dtstarts
-        self._boilerplate_rules = boilerplate_rules
 
     def rrule(self, rrule):
         rrule.normalize_start() # this is not an elegant place to enforce this - needs some design thought
@@ -1085,50 +1080,6 @@ class rruleset(rrulebase):
         else:
             self._exdate.append(exdate)
             
-    def get_rulesets(self, start=None, end=None):
-        # bundles all rrules and exrules that share dtstarts into rrulesets
-        # then returns a sorted list of rrulesets, suitable for display as repetition widgets
-        rules = []
-        if len(self._rrule) == 1:
-            return [self]
-        self._rrule.sort()
-        # we don't care about exrules that match no rrule
-        for rule in self._rrule:
-            if not start or self._until > start:
-                if not end or self._dtstart < end:
-                    dt = rule._dtstart
-                    ruleset = rruleset(boilerplate_rules=self._boilerplate_rules)
-                    ruleset.rrule(rule)
-                    for exrule in self._exrule:
-                        if dt == exrule._dtstart:
-                            ruleset.exrule(exrule)
-                    rules.append(ruleset)
-        return rules
-                
-    def humanize(self, verbosity=NORMAL):
-        text = []
-        for ruleset in self.get_rulesets(): # this seems inefficient
-            if ruleset._matched_rule():
-                repetition_text = RRuleHumanizer(ruleset._rrule[0], verbosity=verbosity, boilerplate=ruleset._matched_rule()).render()
-                text.append(repetition_text)
-            else:
-                text.append(ruleset._humanize_inclusions())
-                exclusion_text = ruleset._humanize_exclusions()
-                if exclusion_text:
-                    text.append("except %s" % ruleset._humanize_exclusions())
-        rdates_text = DatesHumanizer(self._rdate, verbosity=verbosity).render()
-        if rdates_text:
-            text.append('plus %s' % rdates_text)
-        exdates_humanizer = DatesHumanizer(self._exdate, verbosity=verbosity)
-        exdates_text = exdates_humanizer.render()
-        if exdates_text:
-            text.append('except %s' % exdates_humanizer.render())
-        return '\n'.join(text)
-        
-    def _matched_rule(self):
-        for brule in self._boilerplate_rules:
-            if set(self.comparison_strings()) == set(brule.repetition_string.split()):
-                return brule
 
     def _humanize_inclusions(self, verbosity=NORMAL):
         # designed to work on a clustered rruleset, ie. one which has matching dtstarts and no rdates or exdates
@@ -1145,14 +1096,6 @@ class rruleset(rrulebase):
             text.append(exrule_humanizer.render()) # what if multiple rrules and until value differs?
         return '. '.join(text)
     
-    def comparison_strings(self):
-        strings = [rrule.repetition_str(context='RRULE') for rrule in self._rrule]
-        strings.extend([exrule.repetition_str(context='EXRULE') for exrule in self._exrule])
-        return strings
-    
-#     def compare_rules(self, other):
-#         return set(self.repetition_strings()) == set(other.repetition_strings())
-
     def repetition_str(self, original_str=False):
         return self.__unicode__(mode=REPETITION_ONLY, original_str=original_str)
          
@@ -1336,8 +1279,7 @@ class _rrulestr:
                    compatible=False,
                    ignoretz=False,
                    tzinfos=None,
-                   match_dtstarts=False,
-                   boilerplate_rules=[]):
+                   match_dtstarts=False):
         global parser
         if compatible:
             forceset = True
@@ -1416,7 +1358,7 @@ class _rrulestr:
                 rdatevals or exrulevals or exdatevals):
                 if not parser and (rdatevals or exdatevals):
                     from dateutil import parser
-                rrset = rruleset(cache=cache, original_str=s, match_dtstarts=match_dtstarts, boilerplate_rules=boilerplate_rules)
+                rrset = rruleset(cache=cache, original_str=s, match_dtstarts=match_dtstarts)
                 for value in rrulevals:
                     rrset.rrule(self._parse_rfc_rrule(value[1], dtstart=value[0],
                                                     ignoretz=ignoretz,
