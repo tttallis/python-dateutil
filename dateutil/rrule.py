@@ -1171,16 +1171,16 @@ class rruleset(rrulebase):
             if rlist and rlist[0] is ritem:
                 heapq.heapreplace(rlist, ritem)
         self._len = total
-    
-    def exclude_instance(self, dt):
-        # this works but is untidy
-        # it might be prudent to check if the instance already exists or has already been excluded
-        # or indeed if it is defined by and RDATE which can be deleted
-        self._exdate.append(dt)
-    
+        
     def move_instance(self, old_dt, new_dt):
-        self.exclude_instance(old_dt)
-        self._rdate.append(new_dt)
+        if old_dt in self._rdate:
+            self._rdate.remove(old_dt)
+        if old_dt not in self._exdate:
+            self._exdate.append(old_dt)
+        if new_dt not in self._rdate:
+            self._rdate.append(new_dt)
+        print self._rdate, 'R'
+        print self._exdate, 'X'
     
 
 class _rrulestr:
@@ -1303,7 +1303,7 @@ class _rrulestr:
             lines = s.split()
         if (not forceset and len(lines) == 1 and
             (s.find(':') == -1 or s.startswith('RRULE:'))):
-            return self._parse_rfc_rrule(lines[0], cache=cache, original_str=s,
+            return self._parse_rfc_rrule(lines[0], cache=cache,
                                          dtstart=dtstart, ignoretz=ignoretz,
                                          tzinfos=tzinfos)
         else:
@@ -1382,7 +1382,6 @@ class _rrulestr:
                 return rrset
             else:
                 return self._parse_rfc_rrule(rrulevals[0][1],
-                                             original_str=s,
                                              dtstart=rrulevals[0][0],
                                              cache=cache,
                                              ignoretz=ignoretz,
