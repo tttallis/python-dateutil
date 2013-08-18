@@ -1151,18 +1151,18 @@ class rruleset(rrulebase):
         while rlist:
             ritem = rlist[0]
             if not lastdt or lastdt != ritem.dt:
-                if self._match_dtstarts:
-                    while exlist and exlist[0] == ritem:
-                        exitem = exlist[0]
-                        exitem.next()
-                        if exlist and exlist[0] is exitem:
-                            heapq.heapreplace(exlist, exitem)
-                else:
-                    while exlist and exlist[0] < ritem:
-                        exitem = exlist[0]
-                        exitem.next()
-                        if exlist and exlist[0] is exitem:
-                            heapq.heapreplace(exlist, exitem)
+#                 if self._match_dtstarts:
+#                     while exlist and exlist[0] == ritem:
+#                         exitem = exlist[0]
+#                         exitem.next()
+#                         if exlist and exlist[0] is exitem:
+#                             heapq.heapreplace(exlist, exitem)
+#                 else:
+                while exlist and exlist[0] < ritem:
+                    exitem = exlist[0]
+                    exitem.next()
+                    if exlist and exlist[0] is exitem:
+                        heapq.heapreplace(exlist, exitem)
                 if not exlist or ritem != exlist[0]:
                     total += 1
                     yield ritem.dt
