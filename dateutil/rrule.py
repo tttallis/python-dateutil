@@ -1172,16 +1172,18 @@ class rruleset(rrulebase):
                 heapq.heapreplace(rlist, ritem)
         self._len = total
         
-    def move_instance(self, old_dt, new_dt):
-        if old_dt in self._rdate:
-            self._rdate.remove(old_dt)
-        if old_dt not in self._exdate:
-            self._exdate.append(old_dt)
-        if new_dt not in self._rdate:
-            self._rdate.append(new_dt)
-        print self._rdate, 'R'
-        print self._exdate, 'X'
-    
+        print "moving instance from %s to %s" % (old_dt, new_dt)
+        if old_dt in self:
+            if old_dt in self._rdate:
+                self._rdate.remove(old_dt)
+            else:
+                self._exdate.append(old_dt)
+        if new_dt not in self:
+            if new_dt in self._exdate:
+                self._exdate.remove(new_dt)
+            else:
+                self._rdate.append(new_dt)
+            self._rdate.append(new_dt)    
 
 class _rrulestr:
 
