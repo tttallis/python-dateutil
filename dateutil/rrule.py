@@ -1172,6 +1172,7 @@ class rruleset(rrulebase):
                 heapq.heapreplace(rlist, ritem)
         self._len = total
         
+    def move_instance(self, old_dt, new_dt):
         print "moving instance from %s to %s" % (old_dt, new_dt)
         if old_dt in self:
             if old_dt in self._rdate:
