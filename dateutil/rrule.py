@@ -1174,29 +1174,15 @@ class rruleset(rrulebase):
         
     def move_instance(self, old_dt, new_dt):
         if old_dt in self:
-            print 'in rrule rdate=%s' % repr(self._rdate)
-            print 'old_dt is in self, so it needs to removed somehow'
             if old_dt in self._rdate:
-                print 'turns out it was in rdate, so we\'ll just remove that'
                 self._rdate.remove(old_dt)
             else:
-                print 'adding an exdate entry...'
                 self._exdate.append(old_dt)
-        else:
-            print 'old_dt not found in self'
         if new_dt not in self:
-            print 'rdate=%s' % repr(self._rdate)
-            print 'new_dt isn\'t in self, so we\'ll need to add it'
             if new_dt in self._exdate:
-                print 'it\'s an exdate, so we\'ll remove it'
                 self._exdate.remove(new_dt)
             else:
-                print 'rdate=%s' % repr(self._rdate)
-                print 'adding it to rdate...'
                 self._rdate.append(new_dt)
-                print 'rdate=%s' % repr(self._rdate) # it's correct here
-        else:
-            print 'new_dt already in self'
 
 class _rrulestr:
 
