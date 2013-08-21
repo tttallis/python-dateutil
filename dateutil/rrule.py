@@ -1184,7 +1184,15 @@ class rruleset(rrulebase):
             if dt in self._exdate:
                 self._exdate.remove(dt)
             else:
-                self._rdate.append(dt)    
+                self._rdate.append(dt)
+                
+    def clean_rdates(self):
+        for dt in self._rdate:
+            if dt in self:
+                self._rdate.remove(dt)
+        for dt in self._exdate:
+            if dt not in self:
+                self._exdate.remove(dt)
         
     def move_instance(self, old_dt, new_dt):
         self.remove_instance(old_dt)
