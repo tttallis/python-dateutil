@@ -1177,6 +1177,11 @@ class rruleset(rrulebase):
             if dt in self._rdate:
                 self._rdate.remove(dt)
             else:
+                for r in self._rrule:
+                    if dt == r._dtstart:
+                        next = r[1]
+                        r._dtstart = next
+                        return
                 self._exdate.append(dt)
                 
     def add_instance(self, dt):
